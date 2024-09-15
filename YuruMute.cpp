@@ -114,7 +114,6 @@ void CreateTrayIcon(HWND hwnd);
 void DestroyTrayIcon();
 LRESULT CALLBACK LinkWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-// Main Function
 int APIENTRY WinMain(
     _In_ HINSTANCE hInstance,
     _In_opt_ HINSTANCE hPrevInstance,
@@ -130,7 +129,6 @@ int APIENTRY WinMain(
         return 0;
     }
 
-    // Load or initialize configuration
     PWSTR szPath = NULL;
     hr = SHGetKnownFolderPath(FOLDERID_RoamingAppData, 0, NULL, &szPath);
     if (SUCCEEDED(hr))
@@ -155,10 +153,7 @@ int APIENTRY WinMain(
 
     if (pEndpointVolume == NULL)
     {
-        // Show the device selection dialog
         ShowDeviceSelectionDialog();
-
-        // Try initializing again after device selection
         InitializeAudioEndpoint();
 
         if (pEndpointVolume == NULL)
@@ -171,9 +166,8 @@ int APIENTRY WinMain(
 
     pEndpointVolume->GetMute(&bMuted);
 
-    // Create the red and green icons
-    hIconMicOn = CreateColoredIcon(RGB(0, 255, 0));   // Green for Mic On
-    hIconMicOff = CreateColoredIcon(RGB(255, 0, 0));  // Red for Mic Off
+    hIconMicOn = CreateColoredIcon(RGB(255, 0, 0));
+    hIconMicOff = CreateColoredIcon(RGB(0, 0, 0));
 
     if (!hIconMicOn || !hIconMicOff)
     {
@@ -183,7 +177,6 @@ int APIENTRY WinMain(
         return 0;
     }
 
-    // Register the overlay window class
     WNDCLASS wcOverlay = { 0 };
     wcOverlay.lpfnWndProc = OverlayWndProc;
     wcOverlay.hInstance = hInstance;
@@ -207,7 +200,7 @@ int APIENTRY WinMain(
         WS_EX_TOPMOST | WS_EX_LAYERED | WS_EX_NOACTIVATE,
         wcOverlay.lpszClassName, L"Overlay Window",
         WS_POPUP,
-        overlayPosX, overlayPosY, 200, 50,
+        overlayPosX, overlayPosY, 80, 80,
         NULL, NULL, hInstance, NULL);
 
     if (hOverlayWnd == NULL)
@@ -241,7 +234,6 @@ int APIENTRY WinMain(
     ShowWindow(hOverlayWnd, SW_SHOWNOACTIVATE);
     UpdateOverlay();
 
-    // Register the default hotkey
     if (!RegisterHotKey(NULL, HOTKEY_ID, 0, currentHotKey))
     {
         DWORD error = GetLastError();
@@ -269,7 +261,6 @@ int APIENTRY WinMain(
         return 0;
     }
 
-    // Register the main application window class
     WNDCLASS wcApp = { 0 };
     wcApp.lpfnWndProc = WindowProc;
     wcApp.hInstance = hInstance;
@@ -305,7 +296,6 @@ int APIENTRY WinMain(
         return 0;
     }
 
-    // Create the system tray icon
     CreateTrayIcon(hWnd);
 
     MSG msg;
@@ -332,7 +322,6 @@ int APIENTRY WinMain(
     UnregisterClass(L"HotkeyDialogClass", hInstance);
     pEndpointVolume->Release();
 
-    // Destroy icons
     if (hIconMicOn)
     {
         DestroyIcon(hIconMicOn);
@@ -349,11 +338,9 @@ int APIENTRY WinMain(
     return 0;
 }
 
-// Function to toggle mic mute
 void ToggleMute()
 {
     if (isHotkeyDialogOpen) {
-        // Do not toggle mute while the hotkey dialog is open
         return;
     }
 
@@ -361,49 +348,41 @@ void ToggleMute()
     pEndpointVolume->SetMute(!bMuted, NULL);
     bMuted = !bMuted;
 
-    // Update tray icon
     UpdateTrayIcon();
 }
 
-// Function to update tray icon
 void UpdateTrayIcon()
 {
     nid.hIcon = bMuted ? hIconMicOff : hIconMicOn;
     Shell_NotifyIcon(NIM_MODIFY, &nid);
 }
 
-// Function to update the overlay
 void UpdateOverlay()
 {
     InvalidateRect(hOverlayWnd, NULL, TRUE);
     UpdateWindow(hOverlayWnd);
-    UpdateTrayIcon(); // Update tray icon as well
+    UpdateTrayIcon();
 }
 
-// Function to load configuration
 void LoadConfig()
 {
-    WCHAR buffer[256] = { 0 }; // Initialize buffer to zero
+    WCHAR buffer[256] = { 0 };
     GetPrivateProfileString(L"Settings", L"DeviceName", L"", buffer, 256, configFilePath.c_str());
     selectedDeviceName = buffer;
 
-    // Load overlay position
     overlayPosX = GetPrivateProfileInt(L"Settings", L"OverlayPosX", 100, configFilePath.c_str());
     overlayPosY = GetPrivateProfileInt(L"Settings", L"OverlayPosY", 100, configFilePath.c_str());
 
-    // Load hotkey
     WCHAR hotkeyBuffer[16] = { 0 };
     GetPrivateProfileString(L"Settings", L"HotKey", L"19", hotkeyBuffer, 16, configFilePath.c_str()); // Default to VK_PAUSE (0x13 == 19)
     currentHotKey = _wtoi(hotkeyBuffer);
 }
 
-// Function to save configuration
 void SaveConfig()
 {
     WritePrivateProfileString(L"Settings", L"DeviceName", selectedDeviceName.c_str(), configFilePath.c_str());
 }
 
-// Function to save overlay position
 void SaveOverlayPosition()
 {
     WCHAR buffer[16];
@@ -526,7 +505,7 @@ void ShowDeviceSelectionDialog()
 
     HWND hDialog = CreateWindowEx(
         WS_EX_DLGMODALFRAME,
-        L"SelectMicrophoneDialogClass", L"select microphone",
+        L"SelectMicrophoneDialogClass", L"select device",
         WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
         CW_USEDEFAULT, CW_USEDEFAULT, 300, 146,
         NULL, NULL, hInst, NULL);
@@ -597,7 +576,6 @@ void ShowDeviceSelectionDialog()
     }
 }
 
-// Function to initialize the audio endpoint
 void InitializeAudioEndpoint()
 {
     if (pEndpointVolume)
@@ -668,7 +646,6 @@ void InitializeAudioEndpoint()
     pEnumerator->Release();
 }
 
-// Function to create the system tray icon
 void CreateTrayIcon(HWND hwnd)
 {
     nid.cbSize = sizeof(NOTIFYICONDATA);
@@ -677,45 +654,39 @@ void CreateTrayIcon(HWND hwnd)
     nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
     nid.uCallbackMessage = WM_TRAYICON;
 
-    // Set the initial icon based on mute status
     nid.hIcon = bMuted ? hIconMicOff : hIconMicOn;
-    wcscpy_s(nid.szTip, L"yuru mute mic");
+    wcscpy_s(nid.szTip, L"yuru mic muter");
 
     Shell_NotifyIcon(NIM_ADD, &nid);
 
     hTrayMenu = CreatePopupMenu();
-    AppendMenuW(hTrayMenu, MF_STRING, 2000, L"yuru mute mic");
+    AppendMenuW(hTrayMenu, MF_STRING, 2000, L"yuru mic muter");
     AppendMenuW(hTrayMenu, MF_STRING, 2001, L"select device");
     AppendMenuW(hTrayMenu, MF_STRING, 2003, L"set hotkey"); // New Set Hotkey menu
     AppendMenuW(hTrayMenu, MF_STRING, 2002, L"exit");
 }
 
-// Function to destroy the system tray icon
 void DestroyTrayIcon()
 {
     Shell_NotifyIcon(NIM_DELETE, &nid);
     DestroyMenu(hTrayMenu);
 }
 
-// Function to open the Info window
 void OpenInfoWindow()
 {
     if (hInfoWnd != NULL && IsWindow(hInfoWnd))
     {
-        // Bring the existing window to the foreground
         SetForegroundWindow(hInfoWnd);
         return;
     }
 
-    // Define window class for the info window
     WNDCLASS wcInfo = { 0 };
     wcInfo.lpfnWndProc = InfoWndProc;
     wcInfo.hInstance = hInst;
     wcInfo.lpszClassName = L"YuruMuteInfoWindowClass";
     wcInfo.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wcInfo.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1); // Use default window color
+    wcInfo.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
-    // Register the class if not already registered
     WNDCLASS existingClass;
     if (!GetClassInfo(hInst, wcInfo.lpszClassName, &existingClass)) {
         if (!RegisterClass(&wcInfo)) {
@@ -726,10 +697,9 @@ void OpenInfoWindow()
         }
     }
 
-    // Create the info window
     hInfoWnd = CreateWindowEx(
         0,
-        wcInfo.lpszClassName, L"yuru mute mic",
+        wcInfo.lpszClassName, L"yuru mic muter",
         WS_OVERLAPPED | WS_SYSMENU | WS_CAPTION,
         CW_USEDEFAULT, CW_USEDEFAULT, 400, 98,
         NULL, NULL, hInst, NULL);
@@ -865,26 +835,18 @@ LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
 
     switch (uMsg) {
     case WM_CREATE:
-        // Create a label to display instructions
         CreateWindowW(L"STATIC", L"press any key to set as hotkey:", WS_VISIBLE | WS_CHILD,
             0, 0, 240, 20, hwndDlg, NULL, hInst, NULL);
-
-        // Create a label to display the current hotkey name
         CreateWindowW(L"STATIC", GetKeyName(currentHotKey).c_str(), WS_VISIBLE | WS_CHILD,
             0, 20, 240, 20, hwndDlg, (HMENU)IDC_HOTKEY_LABEL, hInst, NULL);
-
-        // Create OK button
         CreateWindowW(L"BUTTON", L"ok", WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
             0, 40, 120, 25, hwndDlg, (HMENU)IDC_HOTKEY_OK, hInst, NULL);
-
-        // Create Cancel button
         CreateWindowW(L"BUTTON", L"cancel", WS_VISIBLE | WS_CHILD,
             120, 40, 115, 25, hwndDlg, (HMENU)IDC_HOTKEY_CANCEL, hInst, NULL);
         return 0;
 
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
-        // Capture the keypress and update the label
         newHotKey = (UINT)wParam;
         SetDlgItemTextW(hwndDlg, IDC_HOTKEY_LABEL, GetKeyName(newHotKey).c_str());
         return 0;
@@ -892,14 +854,12 @@ LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
     case WM_COMMAND:
         switch (LOWORD(wParam)) {
         case IDC_HOTKEY_OK:
-            // Save the new hotkey and register it
             currentHotKey = newHotKey;
             UnregisterHotKey(NULL, HOTKEY_ID);
             if (!RegisterHotKey(NULL, HOTKEY_ID, 0, currentHotKey)) {
                 MessageBox(hwndDlg, L"Failed to register new hotkey.", L"Error", MB_OK | MB_ICONERROR);
             }
             else {
-                // Save the hotkey to the configuration file
                 WCHAR buffer[16];
                 wsprintf(buffer, L"%d", currentHotKey);
                 WritePrivateProfileString(L"Settings", L"HotKey", buffer, configFilePath.c_str());
@@ -918,34 +878,29 @@ LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
         return 0;
 
     case WM_DESTROY:
-        isHotkeyDialogOpen = false;  // Reset the flag when the dialog is closed
+        isHotkeyDialogOpen = false;
         return 0;
     }
 
     return DefWindowProc(hwndDlg, uMsg, wParam, lParam);
 }
 
-// Helper function to get the name of the key
 std::wstring GetKeyName(UINT keyCode) {
     WCHAR name[128] = { 0 };
 
-    // Check if it's a special key we need to handle manually
     if (specialKeyNames.find(keyCode) != specialKeyNames.end()) {
         return specialKeyNames[keyCode];
     }
 
-    // Try using GetKeyNameText for non-special keys
     UINT scanCode = MapVirtualKey(keyCode, MAPVK_VK_TO_VSC);
     LONG lParamValue = (scanCode << 16);
     if (GetKeyNameTextW(lParamValue, name, 128) > 0) {
         return std::wstring(name);
     }
 
-    // If no readable name was found, return a placeholder
     return L"Unknown Key";
 }
 
-// Overlay window procedure
 LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     static POINT ptLast;
@@ -953,7 +908,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     {
     case WM_NCHITTEST:
     {
-        // If CTRL is not pressed, make the window click-through
         if (!(GetKeyState(VK_CONTROL) & 0x8000))
         {
             return HTTRANSPARENT;
@@ -991,7 +945,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         {
             ReleaseCapture();
 
-            // Save the new position
             RECT rc;
             GetWindowRect(hwnd, &rc);
             overlayPosX = rc.left;
@@ -1008,53 +961,42 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         RECT rect;
         GetClientRect(hwnd, &rect);
 
-        HBRUSH hBrush = CreateSolidBrush(bMuted ? RGB(255, 0, 0) : RGB(0, 255, 0));
+        HBRUSH hBrush = CreateSolidBrush(bMuted ? RGB(0, 0, 0) : RGB(255, 0, 0));
         FillRect(hdc, &rect, hBrush);
         DeleteObject(hBrush);
-
         SetBkMode(hdc, TRANSPARENT);
         SetTextColor(hdc, RGB(255, 255, 255));
-        HFONT hFont = CreateFontW(24, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
+
+        HFONT hFont = CreateFontW(19, 0, 0, 0, FW_BOLD, FALSE, FALSE, FALSE,
             DEFAULT_CHARSET, OUT_OUTLINE_PRECIS, CLIP_DEFAULT_PRECIS,
-            ANTIALIASED_QUALITY, VARIABLE_PITCH, L"Arial");
+            ANTIALIASED_QUALITY, VARIABLE_PITCH, L"Segoe UI");
         HFONT hOldFont = (HFONT)SelectObject(hdc, hFont);
-
-        LPCWSTR text = bMuted ? L"mic off" : L"mic on";
-
-        DrawTextW(hdc, text, -1, &rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
-
+        LPCWSTR text = bMuted ? L"\nmic\noff" : L"\nmic\non";
+        DrawTextW(hdc, text, -1, &rect, DT_CENTER | DT_VCENTER);
         SelectObject(hdc, hOldFont);
         DeleteObject(hFont);
-
         EndPaint(hwnd, &ps);
     }
     return 0;
 
     case WM_DESTROY:
-        // Do not call PostQuitMessage here
         return 0;
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-// Info window procedure
 LRESULT CALLBACK InfoWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
     {
     case WM_CREATE:
     {
-        // Create static text with instructions
         CreateWindowW(L"STATIC", L"ctrl+drag to move overlay | yuru.be",
             WS_CHILD | WS_VISIBLE | SS_CENTER,
             0, 0, 400, 20, hwnd, NULL, hInst, NULL);
-
-        // Create "Select Device" button
         HWND hSelectDeviceBtn = CreateWindowW(L"BUTTON", L"select device",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             0, 20, 200, 40, hwnd, (HMENU)IDC_SELECT_DEVICE_BTN, hInst, NULL);
-
-        // Create "Set Hotkey" button with unique ID
         HWND hSetHotkeyBtn = CreateWindowW(L"BUTTON", L"set hotkey",
             WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
             200, 20, 195, 40, hwnd, (HMENU)IDC_SET_HOTKEY_BTN, hInst, NULL);
@@ -1085,7 +1027,7 @@ LRESULT CALLBACK InfoWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
         }
         break;
     }
-
+    
     case WM_DESTROY:
         hInfoWnd = NULL;
         return 0;
@@ -1093,29 +1035,21 @@ LRESULT CALLBACK InfoWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-// Function to create colored icons
 HICON CreateColoredIcon(COLORREF color)
 {
-    int iconSize = GetSystemMetrics(SM_CXSMICON); // Get small icon size
+    int iconSize = GetSystemMetrics(SM_CXSMICON);
     HDC hdcScreen = GetDC(NULL);
     HDC hdcMem = CreateCompatibleDC(hdcScreen);
-
     HBITMAP hBitmapColor = CreateCompatibleBitmap(hdcScreen, iconSize, iconSize);
     HBITMAP hBitmapMask = CreateBitmap(iconSize, iconSize, 1, 1, NULL);
-
     HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmapColor);
-
-    // Fill the background with transparent color
     HBRUSH hBrushBackground = CreateSolidBrush(RGB(0, 0, 0));
-    //FillRect(hdcMem, &(RECT){0, 0, iconSize, iconSize}, hBrushBackground);
     DeleteObject(hBrushBackground);
 
-    // Draw a filled circle
     HBRUSH hBrush = CreateSolidBrush(color);
     SelectObject(hdcMem, hBrush);
     Ellipse(hdcMem, 0, 0, iconSize, iconSize);
     DeleteObject(hBrush);
-
     SelectObject(hdcMem, hOldBitmap);
 
     ICONINFO iconInfo = { 0 };
@@ -1124,8 +1058,6 @@ HICON CreateColoredIcon(COLORREF color)
     iconInfo.hbmMask = hBitmapMask;
 
     HICON hIcon = CreateIconIndirect(&iconInfo);
-
-    // Cleanup
     DeleteObject(hBitmapColor);
     DeleteObject(hBitmapMask);
     DeleteDC(hdcMem);
@@ -1134,7 +1066,6 @@ HICON CreateColoredIcon(COLORREF color)
     return hIcon;
 }
 
-// Main application window procedure
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     if (msg == WM_TRAYICON)
@@ -1180,7 +1111,6 @@ LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
 
-// Link window procedure to handle hyperlink clicks
 LRESULT CALLBACK LinkWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     switch (msg)
@@ -1188,7 +1118,6 @@ LRESULT CALLBACK LinkWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     case WM_LBUTTONDOWN:
     case WM_LBUTTONUP:
     case WM_MOUSEMOVE:
-        // Let the default link behavior handle these messages
         break;
     case WM_NOTIFY:
     {
