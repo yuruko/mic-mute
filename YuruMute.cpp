@@ -55,6 +55,10 @@ std::unordered_map<UINT, std::wstring> specialKeyNames = {
     {VK_UP, L"Up Arrow"}, {VK_DOWN, L"Down Arrow"}, {VK_LEFT, L"Left Arrow"}, {VK_RIGHT, L"Right Arrow"}
 };
 
+// Add declarations for the keyboard hook
+HHOOK hKeyboardHook = NULL;
+LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam);
+
 void ToggleMute();
 void UpdateOverlay();
 void UpdateTrayIcon();
@@ -77,7 +81,8 @@ void CreateTrayIcon(HWND hwnd);
 void DestroyTrayIcon();
 LRESULT CALLBACK LinkWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
+int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
+    _In_ LPSTR lpCmdLine, _In_ int nCmdShow)
 {
     hInst = hInstance;
     HRESULT hr = CoInitialize(NULL);
@@ -139,7 +144,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     wcOverlay.hCursor = LoadCursor(NULL, IDC_ARROW);
     wcOverlay.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
-    if (!RegisterClass(&wcOverlay)) {
+    if (!RegisterClass(&wcOverlay))
+    {
         DWORD error = GetLastError();
         std::wstring errorMessage = L"Failed to register OverlayWindowClass. Error code: " + std::to_wstring(error);
         MessageBox(NULL, errorMessage.c_str(), L"Error", MB_OK | MB_ICONERROR);
@@ -171,7 +177,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
             NULL
         );
         std::wstring errorMessage = L"Failed to create overlay window. Error code: " + std::to_wstring(error);
-        if (errorMsg) {
+        if (errorMsg)
+        {
             errorMessage += L"\n" + std::wstring(errorMsg);
             LocalFree(errorMsg);
         }
@@ -188,25 +195,12 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     ShowWindow(hOverlayWnd, SW_SHOWNOACTIVATE);
     UpdateOverlay();
 
-    if (!RegisterHotKey(NULL, HOTKEY_ID, 0, currentHotKey))
+    // Remove RegisterHotKey code since we're using a keyboard hook now
+    // Install the keyboard hook
+    hKeyboardHook = SetWindowsHookEx(WH_KEYBOARD_LL, LowLevelKeyboardProc, NULL, 0);
+    if (hKeyboardHook == NULL)
     {
-        DWORD error = GetLastError();
-        std::wstring errorMessage = L"Failed to register hotkey. Error code: " + std::to_wstring(error);
-        LPWSTR errorMsg = NULL;
-        FormatMessageW(
-            FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            NULL,
-            error,
-            MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
-            (LPWSTR)&errorMsg,
-            0,
-            NULL
-        );
-        if (errorMsg) {
-            errorMessage += L"\n" + std::wstring(errorMsg);
-            LocalFree(errorMsg);
-        }
-        MessageBox(NULL, errorMessage.c_str(), L"Error", MB_OK | MB_ICONERROR);
+        MessageBox(NULL, L"Failed to install keyboard hook.", L"Error", MB_OK | MB_ICONERROR);
         DestroyWindow(hOverlayWnd);
         DestroyIcon(hIconMicOn);
         DestroyIcon(hIconMicOff);
@@ -220,7 +214,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     wcApp.hInstance = hInstance;
     wcApp.lpszClassName = L"YuruMuteAppClass";
 
-    if (!RegisterClass(&wcApp)) {
+    if (!RegisterClass(&wcApp))
+    {
         DWORD error = GetLastError();
         std::wstring errorMessage = L"Failed to register YuruMuteAppClass. Error code: " + std::to_wstring(error);
         MessageBox(NULL, errorMessage.c_str(), L"Error", MB_OK | MB_ICONERROR);
@@ -235,7 +230,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
     HWND hWnd = CreateWindow(wcApp.lpszClassName, L"YuruMuteApp", 0, 0, 0, 0, 0, NULL, NULL, hInstance, NULL);
 
-    if (!hWnd) {
+    if (!hWnd)
+    {
         DWORD error = GetLastError();
         std::wstring errorMessage = L"Failed to create main application window. Error code: " + std::to_wstring(error);
         MessageBox(NULL, errorMessage.c_str(), L"Error", MB_OK | MB_ICONERROR);
@@ -256,12 +252,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     MSG msg;
     while (GetMessage(&msg, NULL, 0, 0))
     {
-        if (msg.message == WM_HOTKEY && msg.wParam == HOTKEY_ID)
-        {
-            ToggleMute();
-            UpdateOverlay();
-        }
-        else if (msg.message == WM_APP)
+        // Remove WM_HOTKEY handling since we're using a keyboard hook
+        if (msg.message == WM_APP)
         {
             UpdateOverlay();
         }
@@ -270,8 +262,13 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
         DispatchMessage(&msg);
     }
 
+    // Uninstall the keyboard hook
+    if (hKeyboardHook)
+    {
+        UnhookWindowsHookEx(hKeyboardHook);
+        hKeyboardHook = NULL;
+    }
 
-    UnregisterHotKey(NULL, HOTKEY_ID);
     DestroyTrayIcon();
     DestroyWindow(hOverlayWnd);
     UnregisterClass(wcApp.lpszClassName, hInstance);
@@ -295,7 +292,8 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
 
 void ToggleMute()
 {
-    if (isHotkeyDialogOpen) {
+    if (isHotkeyDialogOpen)
+    {
         return;
     }
 
@@ -387,7 +385,8 @@ void ShowDeviceSelectionDialog()
 {
     IMMDeviceEnumerator* pEnumerator = NULL;
     IMMDeviceCollection* pCollection = NULL;
-    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+        __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
     if (FAILED(hr))
     {
         MessageBox(NULL, L"Failed to create MMDeviceEnumerator.", L"Error", MB_OK | MB_ICONERROR);
@@ -449,7 +448,7 @@ void ShowDeviceSelectionDialog()
 
     HWND hDialog = CreateWindowEx(
         WS_EX_DLGMODALFRAME,
-        L"SelectMicrophoneDialogClass", L"select device",
+        L"SelectMicrophoneDialogClass", L"Select Device",
         WS_VISIBLE | WS_SYSMENU | WS_CAPTION,
         CW_USEDEFAULT, CW_USEDEFAULT, 300, 146,
         NULL, NULL, hInst, NULL);
@@ -468,7 +467,8 @@ void ShowDeviceSelectionDialog()
             NULL
         );
         std::wstring errorMessage = L"Failed to create device selection dialog. Error code: " + std::to_wstring(error);
-        if (errorMsg) {
+        if (errorMsg)
+        {
             errorMessage += L"\n" + std::wstring(errorMsg);
             LocalFree(errorMsg);
         }
@@ -494,11 +494,11 @@ void ShowDeviceSelectionDialog()
         SendMessageW(hList, LB_ADDSTRING, 0, (LPARAM)pDeviceNames->at(i).c_str());
     }
 
-    HWND hOkButton = CreateWindowW(L"BUTTON", L"ok",
+    HWND hOkButton = CreateWindowW(L"BUTTON", L"OK",
         WS_CHILD | WS_VISIBLE | BS_DEFPUSHBUTTON,
         0, 83, 150, 25, hDialog, (HMENU)IDC_HOTKEY_OK, hInst, NULL);
 
-    HWND hCancelButton = CreateWindowW(L"BUTTON", L"cancel",
+    HWND hCancelButton = CreateWindowW(L"BUTTON", L"Cancel",
         WS_CHILD | WS_VISIBLE,
         150, 83, 145, 25, hDialog, (HMENU)IDC_HOTKEY_CANCEL, hInst, NULL);
 
@@ -533,7 +533,8 @@ void InitializeAudioEndpoint()
 
     IMMDeviceEnumerator* pEnumerator = NULL;
     IMMDeviceCollection* pCollection = NULL;
-    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+        __uuidof(IMMDeviceEnumerator), (void**)&pEnumerator);
     if (FAILED(hr))
     {
         return;
@@ -623,8 +624,10 @@ void OpenInfoWindow()
     wcInfo.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
     WNDCLASS existingClass;
-    if (!GetClassInfo(hInst, wcInfo.lpszClassName, &existingClass)) {
-        if (!RegisterClass(&wcInfo)) {
+    if (!GetClassInfo(hInst, wcInfo.lpszClassName, &existingClass))
+    {
+        if (!RegisterClass(&wcInfo))
+        {
             DWORD error = GetLastError();
             std::wstring errorMessage = L"Failed to register YuruMuteInfoWindowClass. Error code: " + std::to_wstring(error);
             MessageBox(NULL, errorMessage.c_str(), L"Error", MB_OK | MB_ICONERROR);
@@ -653,7 +656,8 @@ void OpenInfoWindow()
             NULL
         );
         std::wstring errorMessage = L"Failed to create info window. Error code: " + std::to_wstring(error);
-        if (errorMsg) {
+        if (errorMsg)
+        {
             errorMessage += L"\n" + std::wstring(errorMsg);
             LocalFree(errorMsg);
         }
@@ -670,8 +674,10 @@ void OpenInfoWindow()
     ShowWindow(hInfoWnd, SW_SHOW);
 }
 
-void ShowHotkeyDialog(HWND hwnd) {
-    if (!RegisterHotkeyDialogClass(hInst)) {
+void ShowHotkeyDialog(HWND hwnd)
+{
+    if (!RegisterHotkeyDialogClass(hInst))
+    {
         return;
     }
 
@@ -680,7 +686,7 @@ void ShowHotkeyDialog(HWND hwnd) {
     HWND hDlg = CreateWindowEx(
         0,
         L"HotkeyDialogClass",
-        L"hotkey",
+        L"Set Hotkey",
         WS_OVERLAPPED | WS_VISIBLE,
         CW_USEDEFAULT, CW_USEDEFAULT, 240, 103,
         hwnd,
@@ -689,7 +695,8 @@ void ShowHotkeyDialog(HWND hwnd) {
         NULL
     );
 
-    if (!hDlg) {
+    if (!hDlg)
+    {
         DWORD error = GetLastError();
         std::wstring errorMessage = L"Failed to create dialog. Error code: " + std::to_wstring(error);
         LPWSTR errorMsg = NULL;
@@ -702,7 +709,8 @@ void ShowHotkeyDialog(HWND hwnd) {
             0,
             NULL
         );
-        if (errorMsg) {
+        if (errorMsg)
+        {
             errorMessage += L"\n" + std::wstring(errorMsg);
             LocalFree(errorMsg);
         }
@@ -714,7 +722,8 @@ void ShowHotkeyDialog(HWND hwnd) {
     ShowWindow(hDlg, SW_SHOW);
 }
 
-bool RegisterHotkeyDialogClass(HINSTANCE hInst) {
+bool RegisterHotkeyDialogClass(HINSTANCE hInst)
+{
     WNDCLASS wc = { 0 };
     wc.lpfnWndProc = HotkeyDialogProc;
     wc.hInstance = hInst;
@@ -723,11 +732,13 @@ bool RegisterHotkeyDialogClass(HINSTANCE hInst) {
     wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
 
     WNDCLASS existingClass;
-    if (GetClassInfo(hInst, wc.lpszClassName, &existingClass)) {
+    if (GetClassInfo(hInst, wc.lpszClassName, &existingClass))
+    {
         return true;
     }
 
-    if (!RegisterClass(&wc)) {
+    if (!RegisterClass(&wc))
+    {
         DWORD error = GetLastError();
         std::wstring errorMessage = L"Failed to register HotkeyDialogClass. Error code: " + std::to_wstring(error);
         LPWSTR errorMsg = NULL;
@@ -740,7 +751,8 @@ bool RegisterHotkeyDialogClass(HINSTANCE hInst) {
             0,
             NULL
         );
-        if (errorMsg) {
+        if (errorMsg)
+        {
             errorMessage += L"\n" + std::wstring(errorMsg);
             LocalFree(errorMsg);
         }
@@ -751,18 +763,20 @@ bool RegisterHotkeyDialogClass(HINSTANCE hInst) {
     return true;
 }
 
-LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM lParam)
+{
     static UINT newHotKey = VK_PAUSE;
 
-    switch (uMsg) {
+    switch (uMsg)
+    {
     case WM_CREATE:
-        CreateWindowW(L"STATIC", L"press any key to set as hotkey:", WS_VISIBLE | WS_CHILD,
+        CreateWindowW(L"STATIC", L"Press any key to set as hotkey:", WS_VISIBLE | WS_CHILD,
             0, 0, 240, 20, hwndDlg, NULL, hInst, NULL);
         CreateWindowW(L"STATIC", GetKeyName(currentHotKey).c_str(), WS_VISIBLE | WS_CHILD,
             0, 20, 240, 20, hwndDlg, (HMENU)IDC_HOTKEY_LABEL, hInst, NULL);
-        CreateWindowW(L"BUTTON", L"ok", WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
+        CreateWindowW(L"BUTTON", L"OK", WS_VISIBLE | WS_CHILD | BS_DEFPUSHBUTTON,
             0, 40, 120, 25, hwndDlg, (HMENU)IDC_HOTKEY_OK, hInst, NULL);
-        CreateWindowW(L"BUTTON", L"cancel", WS_VISIBLE | WS_CHILD,
+        CreateWindowW(L"BUTTON", L"Cancel", WS_VISIBLE | WS_CHILD,
             120, 40, 115, 25, hwndDlg, (HMENU)IDC_HOTKEY_CANCEL, hInst, NULL);
         return 0;
 
@@ -773,18 +787,14 @@ LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
         return 0;
 
     case WM_COMMAND:
-        switch (LOWORD(wParam)) {
+        switch (LOWORD(wParam))
+        {
         case IDC_HOTKEY_OK:
             currentHotKey = newHotKey;
-            UnregisterHotKey(NULL, HOTKEY_ID);
-            if (!RegisterHotKey(NULL, HOTKEY_ID, 0, currentHotKey)) {
-                MessageBox(hwndDlg, L"Failed to register new hotkey.", L"Error", MB_OK | MB_ICONERROR);
-            }
-            else {
-                WCHAR buffer[16];
-                wsprintf(buffer, L"%d", currentHotKey);
-                WritePrivateProfileString(L"Settings", L"HotKey", buffer, configFilePath.c_str());
-            }
+            // Save the new hotkey to the config file
+            WCHAR buffer[16];
+            wsprintf(buffer, L"%d", currentHotKey);
+            WritePrivateProfileString(L"Settings", L"HotKey", buffer, configFilePath.c_str());
             DestroyWindow(hwndDlg);
             return 0;
 
@@ -806,15 +816,18 @@ LRESULT CALLBACK HotkeyDialogProc(HWND hwndDlg, UINT uMsg, WPARAM wParam, LPARAM
     return DefWindowProc(hwndDlg, uMsg, wParam, lParam);
 }
 
-std::wstring GetKeyName(UINT keyCode) {
+std::wstring GetKeyName(UINT keyCode)
+{
     WCHAR name[128] = { 0 };
-    if (specialKeyNames.find(keyCode) != specialKeyNames.end()) {
+    if (specialKeyNames.find(keyCode) != specialKeyNames.end())
+    {
         return specialKeyNames[keyCode];
     }
 
     UINT scanCode = MapVirtualKey(keyCode, MAPVK_VK_TO_VSC);
     LONG lParamValue = (scanCode << 16);
-    if (GetKeyNameTextW(lParamValue, name, 128) > 0) {
+    if (GetKeyNameTextW(lParamValue, name, 128) > 0)
+    {
         return std::wstring(name);
     }
 
@@ -824,7 +837,7 @@ std::wstring GetKeyName(UINT keyCode) {
 LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
     static POINT ptLast;
-    static bool lastCtrlPressed = false; // Keep track of the last Ctrl key state
+    static bool lastCtrlPressed = false;
 
     switch (msg)
     {
@@ -833,11 +846,11 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         bool isCtrlPressed = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
         if (isCtrlPressed)
         {
-            return HTCLIENT; // Interactive when Ctrl is pressed
+            return HTCLIENT;
         }
         else
         {
-            return HTTRANSPARENT; // Click-through when Ctrl is not pressed
+            return HTTRANSPARENT;
         }
     }
 
@@ -860,15 +873,14 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
             bool isCtrlPressed = (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0;
             if (isCtrlPressed != lastCtrlPressed)
             {
-                // Ctrl key state changed
                 LONG_PTR exStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE);
                 if (isCtrlPressed)
                 {
-                    exStyle &= ~WS_EX_TRANSPARENT; // Remove WS_EX_TRANSPARENT
+                    exStyle &= ~WS_EX_TRANSPARENT;
                 }
                 else
                 {
-                    exStyle |= WS_EX_TRANSPARENT; // Add WS_EX_TRANSPARENT
+                    exStyle |= WS_EX_TRANSPARENT;
                 }
                 SetWindowLongPtr(hwnd, GWL_EXSTYLE, exStyle);
 
@@ -916,7 +928,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
         return 0;
 
     case WM_PAINT:
-        // Your existing painting code
     {
         PAINTSTRUCT ps;
         HDC hdc = BeginPaint(hwnd, &ps);
@@ -941,7 +952,6 @@ LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lPara
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
 }
-
 
 LRESULT CALLBACK WindowProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
 {
@@ -1042,8 +1052,6 @@ HICON CreateColoredIcon(COLORREF color)
     HBITMAP hBitmapColor = CreateCompatibleBitmap(hdcScreen, iconSize, iconSize);
     HBITMAP hBitmapMask = CreateBitmap(iconSize, iconSize, 1, 1, NULL);
     HBITMAP hOldBitmap = (HBITMAP)SelectObject(hdcMem, hBitmapColor);
-    HBRUSH hBrushBackground = CreateSolidBrush(RGB(0, 0, 0));
-    DeleteObject(hBrushBackground);
     HBRUSH hBrush = CreateSolidBrush(color);
     SelectObject(hdcMem, hBrush);
     Ellipse(hdcMem, 0, 0, iconSize, iconSize);
@@ -1082,4 +1090,27 @@ LRESULT CALLBACK LinkWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
     }
     }
     return DefWindowProc(hwnd, msg, wParam, lParam);
+}
+
+LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
+{
+    if (nCode == HC_ACTION)
+    {
+        KBDLLHOOKSTRUCT* pKbDllHookStruct = (KBDLLHOOKSTRUCT*)lParam;
+        if (wParam == WM_KEYDOWN || wParam == WM_SYSKEYDOWN)
+        {
+            if (pKbDllHookStruct->vkCode == (UINT)currentHotKey)
+            {
+                static DWORD lastTime = 0;
+                DWORD currentTime = GetTickCount64();
+                if (currentTime - lastTime > 200)
+                {
+                    ToggleMute();
+                    UpdateOverlay();
+                }
+                lastTime = currentTime;
+            }
+        }
+    }
+    return CallNextHookEx(hKeyboardHook, nCode, wParam, lParam);
 }
