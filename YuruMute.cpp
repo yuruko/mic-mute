@@ -246,7 +246,7 @@ int APIENTRY WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance,
     }
 
     CreateTrayIcon(hWnd);
-    SetTimer(hOverlayWnd, IDT_TOPMOST_TIMER, 1000, NULL);
+    //SetTimer(hOverlayWnd, IDT_TOPMOST_TIMER, 1000, NULL);
     SetTimer(hOverlayWnd, IDT_CTRL_CHECK_TIMER, 50, NULL);
 
     MSG msg;
@@ -1103,7 +1103,7 @@ LRESULT CALLBACK LowLevelKeyboardProc(int nCode, WPARAM wParam, LPARAM lParam)
             {
                 static DWORD lastTime = 0;
                 DWORD currentTime = GetTickCount64();
-                if (currentTime - lastTime > 200)
+                if (currentTime - lastTime > 1)
                 {
                     ToggleMute();
                     UpdateOverlay();
